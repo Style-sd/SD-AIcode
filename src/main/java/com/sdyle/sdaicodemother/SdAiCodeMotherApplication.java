@@ -8,7 +8,7 @@ import org.springframework.context.annotation.EnableAspectJAutoProxy;
 /**
  * SD AI Code Mother 应用程序入口
  * 
- * @author YourName
+ * @author Sdyle
  * @since 1.0.0
  */
 @SpringBootApplication

@@ -24,3 +24,6 @@ create database if not exists sd_ai_code_mother;
 -- 切换库
 use sd_ai_code_mother;
 
+insert into user (userAccount, userPassword, userName, userRole)
+values ('123', '123456', 'sd', 'admin')
+delete from user where id <= 2;
