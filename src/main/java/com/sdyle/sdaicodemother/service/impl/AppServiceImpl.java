@@ -16,16 +16,22 @@ import com.sdyle.sdaicodemother.model.dto.app.AppQueryRequest;
 import com.sdyle.sdaicodemother.model.entity.App;
 import com.sdyle.sdaicodemother.mapper.AppMapper;
 import com.sdyle.sdaicodemother.model.entity.User;
+import com.sdyle.sdaicodemother.model.enums.ChatHistoryMessageTypeEnum;
 import com.sdyle.sdaicodemother.model.enums.CodeGenTypeEnum;
 import com.sdyle.sdaicodemother.model.vo.AppVO;
 import com.sdyle.sdaicodemother.model.vo.UserVO;
 import com.sdyle.sdaicodemother.service.AppService;
+import com.sdyle.sdaicodemother.service.ChatHistoryService;
 import com.sdyle.sdaicodemother.service.UserService;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.View;
 import reactor.core.publisher.Flux;
 
 import java.io.File;
+import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,6 +46,7 @@ import java.util.stream.Collectors;
  * @since 2026-03-15
  */
 @Service
+@Slf4j
 public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppService{
 
     @Resource
@@ -47,6 +54,11 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
 
     @Resource
     private AiCodeGeneratorFacade aiCodeGeneratorFacade;
+
+    @Resource
+    private ChatHistoryService chatHistoryService;
+    @Autowired
+    private View error;
 
     @Override
     public AppVO getAppVO(App app) {
@@ -128,16 +140,36 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
         if (!app.getUserId().equals(loginUser.getId())) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "用户没有权限");
         }
-
-
+        // 获取代码生成类型枚举
         String codeGenTypeStr = app.getCodeGenType();
         CodeGenTypeEnum codeGenTypeEnum = CodeGenTypeEnum.getEnumByValue(codeGenTypeStr);
         if (codeGenTypeEnum == null){
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "代码生成类型错误");
         }
 
+
+        // 保存 USER 的对话历史
+        chatHistoryService.addChatMessage(appId,  messege, ChatHistoryMessageTypeEnum.USER.getValue(), loginUser.getId());
+
         //调用ai生成代码（流式）
-        return aiCodeGeneratorFacade.generateAndSaveCodeStream(messege, codeGenTypeEnum, appId);
+        Flux<String> contentFlux = aiCodeGeneratorFacade.generateAndSaveCodeStream(messege, codeGenTypeEnum, appId);
+
+        // 收集 AI 的相应内容，并保存对话历史
+        StringBuilder aiResponseBuilder = new StringBuilder();
+        return contentFlux
+                .map(chunk -> {
+                    aiResponseBuilder.append(chunk);
+                    return chunk;
+                })
+                .doOnComplete(() -> {
+                    String aiResponse = aiResponseBuilder.toString();
+                    if(!StrUtil.isBlank(aiResponse)){
+                        chatHistoryService.addChatMessage(appId, aiResponse, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
+                    }
+                })
+                .doOnError(error -> {
+                    chatHistoryService.addChatMessage(appId, error.getMessage(), ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
+                });
     }
 
     /**
@@ -191,6 +223,34 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
         // 9. 返回可访问的 URL
         return String.format("%s/%s/", AppConstant.CODE_DEPLOY_HOST, deployKey);
     }
+
+    /**
+     * 删除应用时关联删除对话历史
+     *
+     * @param id 应用ID
+     * @return 是否成功
+     */
+    @Override
+    public boolean removeById(Serializable id) {
+        if (id == null) {
+            return false;
+        }
+        // 转换为 Long 类型
+        Long appId = Long.valueOf(id.toString());
+        if (appId <= 0) {
+            return false;
+        }
+        // 先删除关联的对话历史
+        try {
+            chatHistoryService.deleteByAppId(appId);
+        } catch (Exception e) {
+            // 记录日志但不阻止应用删除
+            log.error("删除应用关联对话历史失败: {}", e.getMessage());
+        }
+        // 删除应用
+        return super.removeById(id);
+    }
+
 
 
 
