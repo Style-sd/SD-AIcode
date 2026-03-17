@@ -71,7 +71,7 @@ public class AppController {
         // 应用名称暂时为 initPrompt 前 12 位
         app.setAppName(initPrompt.substring(0, Math.min(initPrompt.length(), 12)));
         // 暂时设置为多文件生成
-        app.setCodeGenType(CodeGenTypeEnum.MULTI_FILE.getValue());
+        app.setCodeGenType(CodeGenTypeEnum.VUE_PROJECT.getValue());
         // 插入数据库
         boolean result = appService.save(app);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
@@ -288,6 +288,13 @@ public class AppController {
     }
 
 
+    /**
+     * 聊天生成代码
+     *
+     * @param appId 应用 id
+     * @param message 聊天内容
+     * @return 生成的代码
+     */
     @GetMapping(value = "/chat/gen/code", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> chatToGenCode(@RequestParam Long appId, @RequestParam String message, HttpServletRequest request){
         ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR);
@@ -296,6 +303,7 @@ public class AppController {
         User loginUser = userService.getLoginUser(request);
         Flux<String> stringFlux = appService.chatToGenCode(appId, message, loginUser);
 
+        // 包装成 SSE 推送实时数据
         return stringFlux.map(chunk -> {
                     Map<String, String> wrapper = Map.of("d", chunk);
                     return ServerSentEvent.<String>builder(JSONUtil.toJsonStr( wrapper)).build();
