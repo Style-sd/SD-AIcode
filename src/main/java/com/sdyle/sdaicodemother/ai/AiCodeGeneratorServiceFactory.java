@@ -2,12 +2,11 @@ package com.sdyle.sdaicodemother.ai;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.sdyle.sdaicodemother.ai.tools.FileWriteTool;
+import com.sdyle.sdaicodemother.ai.tools.*;
 import com.sdyle.sdaicodemother.exception.BusinessException;
 import com.sdyle.sdaicodemother.exception.ErrorCode;
 import com.sdyle.sdaicodemother.model.enums.CodeGenTypeEnum;
 import com.sdyle.sdaicodemother.service.ChatHistoryService;
-import com.sdyle.sdaicodemother.service.impl.ChatHistoryServiceImpl;
 import dev.langchain4j.community.store.memory.chat.redis.RedisChatMemoryStore;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
@@ -48,6 +47,8 @@ public class AiCodeGeneratorServiceFactory {
                 log.debug("AI 服务实例被移除，缓存键: {}, 原因: {}", key, cause);
             })
             .build();
+    @Autowired
+    private ToolManager toolManager;
 
     /**
      * 根据 appId 获取服务（带缓存）这个方法是为了兼容历史逻辑
@@ -90,7 +91,7 @@ public class AiCodeGeneratorServiceFactory {
             case VUE_PROJECT -> AiServices.builder(AiCodeGeneratorService.class)
                     .streamingChatModel(reasoningStreamingChatModel)
                     .chatMemoryProvider(memoryId -> chatMemory)
-                    .tools(new FileWriteTool())
+                    .tools(toolManager.getAllTools())
                     .hallucinatedToolNameStrategy(toolExecutionRequest -> ToolExecutionResultMessage.from(
                             toolExecutionRequest, "Error: there is no tool called " + toolExecutionRequest.name()
                     ))

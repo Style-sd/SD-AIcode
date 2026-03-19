@@ -2,6 +2,7 @@ package com.sdyle.sdaicodemother.service;
 
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.core.service.IService;
+import com.sdyle.sdaicodemother.model.dto.app.AppAddRequest;
 import com.sdyle.sdaicodemother.model.dto.app.AppQueryRequest;
 import com.sdyle.sdaicodemother.model.entity.App;
 import com.sdyle.sdaicodemother.model.entity.User;
@@ -18,6 +19,8 @@ import java.util.List;
  */
 public interface AppService extends IService<App> {
 
+
+    Long createApp(AppAddRequest appAddRequest, User loginUser);
 
     AppVO getAppVO(App app);
 

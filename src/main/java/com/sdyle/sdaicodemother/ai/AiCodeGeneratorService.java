@@ -2,6 +2,7 @@ package com.sdyle.sdaicodemother.ai;
 
 import com.sdyle.sdaicodemother.ai.model.HtmlCodeResult;
 import com.sdyle.sdaicodemother.ai.model.MultiFileCodeResult;
+import com.sdyle.sdaicodemother.model.enums.CodeGenTypeEnum;
 import dev.langchain4j.service.MemoryId;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.TokenStream;

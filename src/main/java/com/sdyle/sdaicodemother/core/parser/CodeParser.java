@@ -3,7 +3,7 @@ package com.sdyle.sdaicodemother.core.parser;
 /**
  * 代码解析器策略接口
  * 
- * @author yupi
+ * @author sdyle
  */
 public interface CodeParser<T> {
 
