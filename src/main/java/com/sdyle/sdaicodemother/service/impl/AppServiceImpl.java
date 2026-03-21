@@ -8,6 +8,7 @@ import cn.hutool.core.util.StrUtil;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.sdyle.sdaicodemother.ai.AiCodeGenTypeRoutingService;
+import com.sdyle.sdaicodemother.ai.AiCodeGenTypeRoutingServiceFactory;
 import com.sdyle.sdaicodemother.constant.AppConstant;
 import com.sdyle.sdaicodemother.core.AiCodeGeneratorFacade;
 import com.sdyle.sdaicodemother.core.builder.VueProjectBuilder;
@@ -15,6 +16,7 @@ import com.sdyle.sdaicodemother.core.handler.StreamHandlerExecutor;
 import com.sdyle.sdaicodemother.exception.BusinessException;
 import com.sdyle.sdaicodemother.exception.ErrorCode;
 import com.sdyle.sdaicodemother.exception.ThrowUtils;
+import com.sdyle.sdaicodemother.langchain4j.CodeGenConcurrentWorkflow;
 import com.sdyle.sdaicodemother.model.dto.app.AppAddRequest;
 import com.sdyle.sdaicodemother.model.dto.app.AppQueryRequest;
 import com.sdyle.sdaicodemother.model.entity.App;
@@ -71,7 +73,7 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
     private ScreenshotService screenshotService;
 
     @Resource
-    private AiCodeGenTypeRoutingService aiCodeGenTypeRoutingService;
+    private AiCodeGenTypeRoutingServiceFactory aiCodeGenTypeRoutingServiceFactory;
 
     @Override
     public Long createApp(AppAddRequest appAddRequest, User loginUser) {
@@ -84,8 +86,9 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
         app.setUserId(loginUser.getId());
         // 应用名称暂时为 initPrompt 前 12 位
         app.setAppName(initPrompt.substring(0, Math.min(initPrompt.length(), 12)));
-        // 使用 AI 智能选择代码生成类型
-        CodeGenTypeEnum selectedCodeGenType = aiCodeGenTypeRoutingService.routeCodeGenType(initPrompt);
+        // 使用 AI 智能选择代码生成类型（多例模式）
+        AiCodeGenTypeRoutingService routingService = aiCodeGenTypeRoutingServiceFactory.createAiCodeGenTypeRoutingService();
+        CodeGenTypeEnum selectedCodeGenType = routingService.routeCodeGenType(initPrompt);
         app.setCodeGenType(selectedCodeGenType.getValue());
         // 插入数据库
         boolean result = this.save(app);
@@ -159,12 +162,12 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
     }
 
     @Override
-    public Flux<String> chatToGenCode(Long appId, String messege, User loginUser) {
+    public Flux<String> chatToGenCode(Long appId, String message, User loginUser, boolean agent) {
         // 参数校验
         if (appId == null || appId <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "应用 ID 不能为空");
         }
-        if (messege == null || messege.length() <= 0) {
+        if (message == null || message.length() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户消息不能为空");
         }
 
@@ -182,14 +185,20 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "代码生成类型错误");
         }
 
-
         // 保存 USER 的对话历史
-        chatHistoryService.addChatMessage(appId,  messege, ChatHistoryMessageTypeEnum.USER.getValue(), loginUser.getId());
+        chatHistoryService.addChatMessage(appId,  message, ChatHistoryMessageTypeEnum.USER.getValue(), loginUser.getId());
 
-        //调用ai生成代码（流式）
-        Flux<String> contentFlux = aiCodeGeneratorFacade.generateAndSaveCodeStream(messege, codeGenTypeEnum, appId);
+        // 根据 agent 参数选择生成方式
+        Flux<String> codeStream;
+        if (agent) {
+            // Agent 模式：使用工作流生成代码
+            codeStream = new CodeGenConcurrentWorkflow().executeWorkflowWithFlux(message, appId);
+        } else {
+            // 传统模式：调用 AI 生成代码（流式）
+            codeStream = aiCodeGeneratorFacade.generateAndSaveCodeStream(message, codeGenTypeEnum, appId);
+        }
 
-        return streamHandlerExecutor.doExecute(contentFlux, chatHistoryService, appId, loginUser, codeGenTypeEnum);
+        return streamHandlerExecutor.doExecute(codeStream, chatHistoryService, appId, loginUser, codeGenTypeEnum);
 
 
     }

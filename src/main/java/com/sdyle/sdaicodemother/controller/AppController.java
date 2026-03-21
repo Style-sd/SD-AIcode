@@ -289,12 +289,16 @@ public class AppController {
      * @return 生成的代码
      */
     @GetMapping(value = "/chat/gen/code", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ServerSentEvent<String>> chatToGenCode(@RequestParam Long appId, @RequestParam String message, HttpServletRequest request){
+    public Flux<ServerSentEvent<String>> chatToGenCode(
+            @RequestParam Long appId,
+            @RequestParam String message,
+            @RequestParam(defaultValue = "true") boolean agent,
+            HttpServletRequest request){
         ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR);
         ThrowUtils.throwIf(message == null, ErrorCode.PARAMS_ERROR);
 
         User loginUser = userService.getLoginUser(request);
-        Flux<String> stringFlux = appService.chatToGenCode(appId, message, loginUser);
+        Flux<String> stringFlux = appService.chatToGenCode(appId, message, loginUser, agent);
 
         // 包装成 SSE 推送实时数据
         return stringFlux.map(chunk -> {

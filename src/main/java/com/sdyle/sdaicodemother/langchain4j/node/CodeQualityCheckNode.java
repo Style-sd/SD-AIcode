@@ -2,20 +2,15 @@ package com.sdyle.sdaicodemother.langchain4j.node;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
-import com.sdyle.sdaicodemother.constant.AppConstant;
-import com.sdyle.sdaicodemother.core.AiCodeGeneratorFacade;
 import com.sdyle.sdaicodemother.langchain4j.ai.CodeQualityCheckService;
 import com.sdyle.sdaicodemother.langchain4j.model.QualityResult;
 import com.sdyle.sdaicodemother.langchain4j.state.WorkflowContext;
-import com.sdyle.sdaicodemother.model.enums.CodeGenTypeEnum;
 import com.sdyle.sdaicodemother.utils.SpringContextUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.AsyncNodeAction;
 import org.bsc.langgraph4j.prebuilt.MessagesState;
-import reactor.core.publisher.Flux;
 
 import java.io.File;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 
@@ -122,7 +117,5 @@ public class CodeQualityCheckNode {
         String fileName = file.getName().toLowerCase();
         return CODE_EXTENSIONS.stream().anyMatch(fileName::endsWith);
     }
-
-
 
 }

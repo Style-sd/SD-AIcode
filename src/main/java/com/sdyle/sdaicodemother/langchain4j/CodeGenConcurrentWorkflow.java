@@ -1,5 +1,6 @@
 package com.sdyle.sdaicodemother.langchain4j;
 
+import cn.hutool.json.JSONUtil;
 import com.sdyle.sdaicodemother.langchain4j.model.QualityResult;
 import com.sdyle.sdaicodemother.exception.BusinessException;
 import com.sdyle.sdaicodemother.exception.ErrorCode;
@@ -14,6 +15,7 @@ import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.NodeOutput;
 import org.bsc.langgraph4j.prebuilt.MessagesState;
 import org.bsc.langgraph4j.prebuilt.MessagesStateGraph;
+import reactor.core.publisher.Flux;
 
 import java.util.Map;
 
@@ -81,9 +83,10 @@ public class CodeGenConcurrentWorkflow {
     /**
      * 执行并发工作流
      */
-    public WorkflowContext executeWorkflow(String originalPrompt) {
+    public WorkflowContext executeWorkflow(String originalPrompt, Long appId) {
         CompiledGraph<MessagesState<String>> workflow = createWorkflow();
         WorkflowContext initialContext = WorkflowContext.builder()
+                .appId(appId)
                 .originalPrompt(originalPrompt)
                 .currentStep("初始化")
                 .build();
@@ -106,6 +109,66 @@ public class CodeGenConcurrentWorkflow {
         log.info("并发代码生成工作流执行完成！");
         return finalContext;
     }
+
+    /**
+     * 执行并发工作流(Flux)
+     */
+    public Flux<String> executeWorkflowWithFlux(String originalPrompt, Long appId) {
+        return Flux.create(sink -> {
+            try{
+                CompiledGraph<MessagesState<String>> workflow = createWorkflow();
+                WorkflowContext initialContext = WorkflowContext.builder()
+                        .appId(appId)
+                        .originalPrompt(originalPrompt)
+                        .currentStep("初始化")
+                        .build();
+                GraphRepresentation graph = workflow.getGraph(GraphRepresentation.Type.MERMAID);
+                log.info("并发工作流图:\n{}", graph.content());
+                log.info("开始执行并发代码生成工作流");
+//                WorkflowContext finalContext = null;
+                int stepCounter = 1;
+                for (NodeOutput<MessagesState<String>> step : workflow.stream(
+                        Map.of(WorkflowContext.WORKFLOW_CONTEXT_KEY, initialContext)
+                )) {
+                    log.info("--- 第 {} 步完成 ---", stepCounter);
+                    WorkflowContext currentContext = WorkflowContext.getContext(step.state());
+                    if (currentContext != null) {
+//                        finalContext = currentContext;
+                        log.info("当前步骤上下文: {}", currentContext);
+                    }
+                    stepCounter++;
+                }
+                log.info("并发代码生成工作流执行完成！");
+                sink.next(formatSseEvent("workflow_completed", Map.of(
+                        "message", "代码生成工作流执行完成！"
+                )));
+                log.info("代码生成工作流执行完成！");
+                sink.complete();
+            }
+            catch (Exception e) {
+                log.error("工作流执行失败：{}", e.getMessage(), e);
+                sink.next(formatSseEvent("workflow_error", Map.of(
+                        "error", e.getMessage(),
+                        "message", "工作流执行失败"
+                )));
+                sink.error(e);
+            }
+        });
+    }
+
+    /**
+     * 格式化 SSE 事件的辅助方法
+     */
+    private String formatSseEvent(String eventType, Object data) {
+        try {
+            String jsonData = JSONUtil.toJsonStr(data);
+            return "event: " + eventType + "\ndata: " + jsonData + "\n\n";
+        } catch (Exception e) {
+            log.error("格式化 SSE 事件失败: {}", e.getMessage(), e);
+            return "event: error\ndata: {\"error\":\"格式化失败\"}\n\n";
+        }
+    }
+
 
     /**
      * 路由函数：根据质检结果决定下一步
