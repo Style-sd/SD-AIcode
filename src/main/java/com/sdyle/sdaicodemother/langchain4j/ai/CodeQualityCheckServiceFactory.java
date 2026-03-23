@@ -15,7 +15,6 @@ public class CodeQualityCheckServiceFactory {
     /**
      * 创建代码质量检查 AI 服务
      */
-    @Bean
     public CodeQualityCheckService createCodeQualityCheckService() {
         ChatModel chatModel = SpringContextUtil.getBean("openAiChatModel", ChatModel.class);
         return AiServices.builder(CodeQualityCheckService.class)

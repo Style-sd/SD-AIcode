@@ -80,7 +80,7 @@ public class AiCodeGeneratorServiceFactory {
                 .builder()
                 .id(appId)
                 .chatMemoryStore(redisChatMemoryStore)
-                .maxMessages(50)
+                .maxMessages(100)
                 .build();
         // 从数据库加载历史对话到记忆中
         chatHistoryService.loadChatHistoryToMemory(appId, chatMemory, 50);
@@ -93,7 +93,8 @@ public class AiCodeGeneratorServiceFactory {
                         .streamingChatModel(reasoningStreamingChatModel)
                         .chatMemoryProvider(memoryId -> chatMemory)
                         .tools(toolManager.getAllTools())
-                        .inputGuardrails(new PromptSafetyInputGuardrail())
+                        .maxSequentialToolsInvocations(20)
+//                        .inputGuardrails(new PromptSafetyInputGuardrail())
 //                        .outputGuardrails(new RetryOutputGuardrail())
                         .hallucinatedToolNameStrategy(toolExecutionRequest -> ToolExecutionResultMessage.from(
                                 toolExecutionRequest, "Error: there is no tool called " + toolExecutionRequest.name()
@@ -107,7 +108,7 @@ public class AiCodeGeneratorServiceFactory {
                         .chatModel(chatModel)
                         .streamingChatModel(openAiStreamingChatModel)
                         .chatMemory(chatMemory)
-                        .inputGuardrails(new PromptSafetyInputGuardrail())
+//                        .inputGuardrails(new PromptSafetyInputGuardrail())
 //                        .outputGuardrails(new RetryOutputGuardrail())
                         .build();
             }

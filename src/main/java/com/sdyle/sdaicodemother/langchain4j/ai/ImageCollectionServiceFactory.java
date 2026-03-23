@@ -28,7 +28,6 @@ public class ImageCollectionServiceFactory {
     /**
      * 创建图片收集 AI 服务
      */
-    @Bean
     public ImageCollectionService createImageCollectionService() {
         ChatModel chatModel = SpringContextUtil.getBean("openAiChatModel", ChatModel.class);
         return AiServices.builder(ImageCollectionService.class)

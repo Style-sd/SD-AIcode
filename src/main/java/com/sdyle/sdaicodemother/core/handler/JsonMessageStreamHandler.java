@@ -61,6 +61,9 @@ public class JsonMessageStreamHandler {
                 .doOnComplete(() -> {
                     // 流式响应完成后，添加 AI 消息到对话历史
                     String aiResponse = chatHistoryStringBuilder.toString();
+                    if (StrUtil.isEmpty(aiResponse)) {
+                        aiResponse = "Vue 项目代码生成完成！已为您创建完整的前端项目结构。";
+                    }
                     chatHistoryService.addChatMessage(appId, aiResponse, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
                     String projectPath = AppConstant.CODE_OUTPUT_ROOT_DIR + "/vue_project_" + appId;
                     vueProjectBuilder.buildProjectAsync(projectPath);
@@ -76,8 +79,21 @@ public class JsonMessageStreamHandler {
      * 解析并收集 TokenStream 数据
      */
     private String handleJsonMessageChunk(String chunk, StringBuilder chatHistoryStringBuilder, Set<String> seenToolIds) {
+        // 过滤空字符串和纯空白字符
+        if (chunk == null || chunk.trim().isEmpty()) {
+            return "";
+        }
+
+        // 尝试解析 JSON，如果不是合法 JSON 则跳过
+        StreamMessage streamMessage;
+        try {
+            streamMessage = JSONUtil.toBean(chunk, StreamMessage.class);
+        } catch (Exception e) {
+            log.warn("解析 JSON 消息块失败，跳过此消息块：{}", chunk);
+            return "";
+        }
         // 解析 JSON
-        StreamMessage streamMessage = JSONUtil.toBean(chunk, StreamMessage.class);
+        // StreamMessage streamMessage = JSONUtil.toBean(chunk, StreamMessage.class);
         StreamMessageTypeEnum typeEnum = StreamMessageTypeEnum.getEnumByValue(streamMessage.getType());
 
         switch (typeEnum) {

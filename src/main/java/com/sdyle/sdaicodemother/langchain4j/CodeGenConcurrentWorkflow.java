@@ -109,52 +109,114 @@ public class CodeGenConcurrentWorkflow {
         log.info("并发代码生成工作流执行完成！");
         return finalContext;
     }
-
+//
+//    /**
+//     * 执行并发工作流(Flux)
+//     */
+//    public Flux<String> executeWorkflowWithFlux(String originalPrompt, Long appId) {
+//        return Flux.create(sink -> {
+//            Thread.startVirtualThread(() -> {
+//                try{
+//                    CompiledGraph<MessagesState<String>> workflow = createWorkflow();
+//                    WorkflowContext initialContext = WorkflowContext.builder()
+//                            .appId(appId)
+//                            .originalPrompt(originalPrompt)
+//                            .currentStep("初始化")
+//                            .build();
+//                    GraphRepresentation graph = workflow.getGraph(GraphRepresentation.Type.MERMAID);
+//                    log.info("并发工作流图:\n{}", graph.content());
+//                    log.info("开始执行并发代码生成工作流");
+////                WorkflowContext finalContext = null;
+//                    int stepCounter = 1;
+//                    for (NodeOutput<MessagesState<String>> step : workflow.stream(
+//                            Map.of(WorkflowContext.WORKFLOW_CONTEXT_KEY, initialContext)
+//                    )) {
+//                        log.info("--- 第 {} 步完成 ---", stepCounter);
+//                        WorkflowContext currentContext = WorkflowContext.getContext(step.state());
+//                        if (currentContext != null) {
+////                        finalContext = currentContext;
+//                            // 实时推送每个步骤的状态到前端
+////                        String stepMessage = JSONUtil.toJsonStr(Map.of(
+////                                "step", stepCounter,
+////                                "currentStep", currentContext.getCurrentStep(),
+////                                "message", "正在执行：" + currentContext.getCurrentStep()
+////                        ));
+////                        sink.next(stepMessage);
+//                            log.info("当前步骤上下文: {}", currentContext);
+//                        }
+//                        stepCounter++;
+//                    }
+//                    log.info("并发代码生成工作流执行完成！");
+//                    sink.next(formatSseEvent("workflow_completed", Map.of(
+//                            "message", "代码生成工作流执行完成！"
+//                    )));
+//                    log.info("代码生成工作流执行完成！");
+//                    sink.complete();
+//                }
+//                catch (Exception e) {
+//                    log.error("工作流执行失败：{}", e.getMessage(), e);
+//                    sink.next(formatSseEvent("workflow_error", Map.of(
+//                            "error", e.getMessage(),
+//                            "message", "工作流执行失败"
+//                    )));
+//                    sink.error(e);
+//                }
+//            })
+//
+//        });
+//    }
     /**
-     * 执行并发工作流(Flux)
+     * 执行工作流（Flux 流式输出版本）
      */
     public Flux<String> executeWorkflowWithFlux(String originalPrompt, Long appId) {
         return Flux.create(sink -> {
-            try{
-                CompiledGraph<MessagesState<String>> workflow = createWorkflow();
-                WorkflowContext initialContext = WorkflowContext.builder()
-                        .appId(appId)
-                        .originalPrompt(originalPrompt)
-                        .currentStep("初始化")
-                        .build();
-                GraphRepresentation graph = workflow.getGraph(GraphRepresentation.Type.MERMAID);
-                log.info("并发工作流图:\n{}", graph.content());
-                log.info("开始执行并发代码生成工作流");
-//                WorkflowContext finalContext = null;
-                int stepCounter = 1;
-                for (NodeOutput<MessagesState<String>> step : workflow.stream(
-                        Map.of(WorkflowContext.WORKFLOW_CONTEXT_KEY, initialContext)
-                )) {
-                    log.info("--- 第 {} 步完成 ---", stepCounter);
-                    WorkflowContext currentContext = WorkflowContext.getContext(step.state());
-                    if (currentContext != null) {
-//                        finalContext = currentContext;
-                        log.info("当前步骤上下文: {}", currentContext);
+            Thread.startVirtualThread(() -> {
+                try {
+                    CompiledGraph<MessagesState<String>> workflow = createWorkflow();
+                    WorkflowContext initialContext = WorkflowContext.builder()
+                            .appId(appId)
+                            .originalPrompt(originalPrompt)
+                            .currentStep("初始化")
+                            .build();
+                    sink.next(formatSseEvent("workflow_start", Map.of(
+                            "message", "开始执行代码生成工作流",
+                            "originalPrompt", originalPrompt
+                    )));
+                    GraphRepresentation graph = workflow.getGraph(GraphRepresentation.Type.MERMAID);
+                    log.info("工作流图:\n{}", graph.content());
+
+                    int stepCounter = 1;
+                    for (NodeOutput<MessagesState<String>> step : workflow.stream(
+                            Map.of(WorkflowContext.WORKFLOW_CONTEXT_KEY, initialContext))) {
+                        log.info("--- 第 {} 步完成 ---", stepCounter);
+                        WorkflowContext currentContext = WorkflowContext.getContext(step.state());
+                        if (currentContext != null) {
+                            sink.next(formatSseEvent("step_completed", Map.of(
+                                    "stepNumber", stepCounter,
+                                    "currentStep", currentContext.getCurrentStep()
+                            )));
+                            log.info("当前步骤上下文: {}", currentContext);
+                        }
+                        stepCounter++;
                     }
-                    stepCounter++;
+                    sink.next(formatSseEvent("workflow_completed", Map.of(
+                            "message", "代码生成工作流执行完成！"
+                    )));
+                    log.info("代码生成工作流执行完成！");
+                    sink.complete();
+                } catch (Exception e) {
+                    log.error("工作流执行失败: {}", e.getMessage(), e);
+                    sink.next(formatSseEvent("workflow_error", Map.of(
+                            "error", e.getMessage(),
+                            "message", "工作流执行失败"
+                    )));
+                    sink.error(e);
                 }
-                log.info("并发代码生成工作流执行完成！");
-                sink.next(formatSseEvent("workflow_completed", Map.of(
-                        "message", "代码生成工作流执行完成！"
-                )));
-                log.info("代码生成工作流执行完成！");
-                sink.complete();
-            }
-            catch (Exception e) {
-                log.error("工作流执行失败：{}", e.getMessage(), e);
-                sink.next(formatSseEvent("workflow_error", Map.of(
-                        "error", e.getMessage(),
-                        "message", "工作流执行失败"
-                )));
-                sink.error(e);
-            }
+            });
         });
     }
+
+
 
     /**
      * 格式化 SSE 事件的辅助方法

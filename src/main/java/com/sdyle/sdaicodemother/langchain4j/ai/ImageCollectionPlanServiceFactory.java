@@ -10,7 +10,6 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class ImageCollectionPlanServiceFactory {
 
-    @Bean
     public ImageCollectionPlanService createImageCollectionPlanService() {
         ChatModel chatModel = SpringContextUtil.getBean("openAiChatModel", ChatModel.class);
         return AiServices.builder(ImageCollectionPlanService.class)

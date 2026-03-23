@@ -311,6 +311,20 @@ public class AppController {
                             .data("")
                             .build()
                 ));
+//        return stringFlux.map(chunk -> {
+////                    Map<String, String> wrapper = Map.of("d", chunk);
+//                    return ServerSentEvent.<String>builder()
+//                            .event("message")
+////                            .data(JSONUtil.toJsonStr(wrapper))
+//                            .data(chunk)
+//                            .build();
+//                })
+//                .concatWith(Mono.just(
+//                        ServerSentEvent.<String>builder()
+//                                .event("done")
+//                                .data("")
+//                                .build()
+//                ));
     }
 
     /**
